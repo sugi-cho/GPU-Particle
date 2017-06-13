@@ -1,9 +1,5 @@
 ﻿Shader "Unlit/ParticleVisualize"
 {
-	Properties
-	{
-		_MainTex ("Texture", 2D) = "white" {}
-	}
 	SubShader
 	{
 		Tags { "RenderType"="Opaque" }
@@ -39,9 +35,6 @@
 			
 			StructuredBuffer<ParticleData> _Particles;
 			StructuredBuffer<uint> _Active;
-
-			sampler2D _MainTex;
-			float4 _MainTex_ST;
 			
 			v2f vert (uint id : SV_VertexID)
 			{
@@ -49,7 +42,7 @@
 				v2f o;
 				o.pos = float4(_Particles[idx].position, 1);
 				o.uv = float2(0,0);
-				o.col = _Particles[idx].color;
+				o.col = _Particles[idx].color * saturate(_Particles[idx].duration);
 				o.size = _Particles[idx].isActive ? _Particles[idx].size : 0; // 有効出ないときはサイズを0にする
 
 				return o;
@@ -89,9 +82,8 @@
 
 			fixed4 frag (v2f i) : SV_Target
 			{
-				// sample the texture
-				fixed4 col = tex2D(_MainTex, i.uv) * i.col;
-				return col;
+				half d = distance(i.uv, 0.5);
+				return smoothstep(0.5,0,d) * i.col*0.5;
 			}
 			ENDCG
 		}

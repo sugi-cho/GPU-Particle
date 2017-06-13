@@ -5,6 +5,7 @@
 
 #include "UnityCG.cginc"
 #include "ParticleCommon.cginc"
+#include "Assets/CGINC/SimplexNoise3D.cginc"
 // Create a RenderTexture with enableRandomWrite flag and set it
 // with cs.SetTexture
 RWTexture2D<float4> Result;
@@ -41,14 +42,20 @@ void emit (uint3 id : SV_DispatchThreadID)
 		ParticleData p = _Particles[idx];
 		p.isActive = true;
 		p.position = _PosEmit;
-		p.velocity = float3(sin((float)idx*0.5),cos((float)idx*0.33),sin((float)idx*0.66));
-		p.velocity = normalize(p.velocity) * 10.0 * frac(idx*0.01);
-		p.color = float4(1,1,1,1);
+		p.velocity = float3(sin(id.x*0.01),cos(id.x*0.01),sin(id.x*0.02));
+		p.velocity = normalize(p.velocity) * 10.0 * frac(id.x*0.01);
+		p.color = lerp(float4(0,1,0,1),float4(1,0,0,1),frac(id.x*0.01));
 		p.duration = _LifeTime;
 		p.size = .1;
 
 		_Particles[idx] = p;
 	}
+}
+
+float3 divergenceFreeNoise(float3 pos){
+	float3 grad0 = snoise_grad(pos);
+	float3 grad1 = snoise_grad(pos + 5.33);
+	return cross(grad0, grad1);
 }
 
 [numthreads(16,1,1)]
@@ -58,6 +65,11 @@ void update (uint3 id : SV_DispatchThreadID)
 	ParticleData p = _Particles[idx];
 	if(p.isActive){
 		p.velocity.y -= _Gravity * _DT;
+		p.velocity += divergenceFreeNoise(p.position*0.1) * _DT * 5.;
+		p.velocity -= p.position * _DT;
+		float speed = length(p.velocity);
+		p.velocity *= 1.0 - speed*speed * 0.005 * _DT;
+
 		p.position += p.velocity * _DT;
 		p.duration -= _DT;
 		if(p.duration < 0){
