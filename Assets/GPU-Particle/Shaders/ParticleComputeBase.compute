@@ -1,0 +1,67 @@
+﻿// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel init
+#pragma kernel emit
+#pragma kernel update
+
+#include "UnityCG.cginc"
+#include "ParticleCommon.cginc"
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float4> Result;
+RWStructuredBuffer<ParticleData> _Particles;
+AppendStructuredBuffer<uint> _Dead;
+ConsumeStructuredBuffer<uint> _Pool;
+
+// Prop for emit
+float3 _PosEmit;
+uint _NumEmit;
+
+//prop for Update
+float _DT;
+float _LifeTime;
+float _Gravity;
+
+[numthreads(16,1,1)]
+void init (uint3 id : SV_DispatchThreadID)
+{
+	uint idx = id.x;
+
+	_Particles[idx].isActive = false;
+	_Dead.Append(idx);
+}
+
+[numthreads(16,1,1)]
+void emit (uint3 id : SV_DispatchThreadID)
+{
+	uint idx = id.x;
+	if(idx < _NumEmit){
+		idx = _Pool.Consume();
+		ParticleData p = _Particles[idx];
+		p.isActive = true;
+		p.position = _PosEmit;
+		p.velocity = float3(sin((float)idx*0.5),cos((float)idx*0.33),sin((float)idx*0.66));
+		p.velocity = normalize(p.velocity) * 10.0 * frac(idx*0.01);
+		p.color = float4(1,1,1,1);
+		p.duration = _LifeTime;
+		p.size = 0.1;
+
+		_Particles[idx] = p;
+	}
+}
+
+[numthreads(16,1,1)]
+void update (uint3 id : SV_DispatchThreadID)
+{
+	uint idx = id.x;
+	ParticleData p = _Particles[idx];
+	if(p.isActive){
+		p.velocity.y -= _Gravity * _DT;
+		p.position += p.velocity * _DT;
+		p.duration -= _DT;
+		if(p.duration < 0){
+			p.isActive = false;
+			_Dead.Append(idx);
+		}
+		_Particles[idx] = p;
+	}
+}
