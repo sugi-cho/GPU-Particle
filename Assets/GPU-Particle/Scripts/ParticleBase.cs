@@ -1,6 +1,4 @@
-﻿using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Linq;
 using System.Runtime.InteropServices;
 using UnityEngine;
 
@@ -32,12 +30,14 @@ public class ParticleBase : MonoBehaviour
     public string propParticleBuffer = "_Particles";
     public string propPoolBuffer = "_Pool";
     public string propDeadBuffer = "_Dead";
-    public string propCountBuffer = "_Counter";
+    public string propActiveBuffer = "_Active";
 
     int numParticles;
     ComputeBuffer particleBuffer;
-    ComputeBuffer PoolBuffer;
-    ComputeBuffer countBuffer;
+    ComputeBuffer activeBuffer;
+    ComputeBuffer poolBuffer;
+    ComputeBuffer activeCountBuffer;
+    ComputeBuffer poolCountBuffer;
     int[] particleCounts;
 
     int initKernel;
@@ -57,33 +57,41 @@ public class ParticleBase : MonoBehaviour
         numParticles = (int)((maxParticles / x) * x);
 
         particleBuffer = new ComputeBuffer(numParticles, Marshal.SizeOf(typeof(ParticleData)), ComputeBufferType.Default);
-        PoolBuffer = new ComputeBuffer(numParticles, Marshal.SizeOf(typeof(int)), ComputeBufferType.Append);
-        PoolBuffer.SetCounterValue(0);
-        countBuffer = new ComputeBuffer(4, Marshal.SizeOf(typeof(int)), ComputeBufferType.IndirectArguments);
+
+        activeBuffer = new ComputeBuffer(numParticles, Marshal.SizeOf(typeof(int)), ComputeBufferType.Append);
+        activeBuffer.SetCounterValue(0);
+        poolBuffer = new ComputeBuffer(numParticles, Marshal.SizeOf(typeof(int)), ComputeBufferType.Append);
+        poolBuffer.SetCounterValue(0);
+
         particleCounts = new[] { 0, 1, 0, 0 };
-        countBuffer.SetData(particleCounts);
+        activeCountBuffer = new ComputeBuffer(4, Marshal.SizeOf(typeof(int)), ComputeBufferType.IndirectArguments);
+        activeCountBuffer.SetData(particleCounts);
+        poolCountBuffer = new ComputeBuffer(4, Marshal.SizeOf(typeof(int)), ComputeBufferType.IndirectArguments);
+        poolCountBuffer.SetData(particleCounts);
 
         particleCompute.SetBuffer(initKernel, propParticleBuffer, particleBuffer);
-        particleCompute.SetBuffer(initKernel, propDeadBuffer, PoolBuffer);
+        particleCompute.SetBuffer(initKernel, propDeadBuffer, poolBuffer);
         particleCompute.Dispatch(initKernel, numParticles / (int)x, 1, 1);
     }
 
     protected virtual void UpdateParticle()
     {
+        activeBuffer.SetCounterValue(0);
         particleCompute.SetFloat("_DT", Time.deltaTime);
         particleCompute.SetFloat("_LifeTime", lifeTime);
         particleCompute.SetFloat("_Gravity", gravity);
         particleCompute.SetBuffer(updateKernel, propParticleBuffer, particleBuffer);
-        particleCompute.SetBuffer(updateKernel, propDeadBuffer, PoolBuffer);
+        particleCompute.SetBuffer(updateKernel, propDeadBuffer, poolBuffer);
+        particleCompute.SetBuffer(updateKernel, propActiveBuffer, activeBuffer);
 
         particleCompute.Dispatch(updateKernel, numParticles / (int)x, 1, 1);
     }
 
     protected virtual void EmitParticle(Vector3 posEmit, int numEmit = 100)
     {
-        countBuffer.SetData(particleCounts);
-        ComputeBuffer.CopyCount(PoolBuffer, countBuffer, 0);
-        countBuffer.GetData(particleCounts);
+        poolCountBuffer.SetData(particleCounts);
+        ComputeBuffer.CopyCount(poolBuffer, poolCountBuffer, 0);
+        poolCountBuffer.GetData(particleCounts);
 
         var poolCount = particleCounts[0];
         numEmit = Mathf.Min(numEmit, poolCount);
@@ -91,7 +99,7 @@ public class ParticleBase : MonoBehaviour
         particleCompute.SetInt("_NumEmit", numEmit);
         particleCompute.SetVector("_PosEmit", posEmit);
         particleCompute.SetBuffer(emitKernel, propParticleBuffer, particleBuffer);
-        particleCompute.SetBuffer(emitKernel, propPoolBuffer, PoolBuffer);
+        particleCompute.SetBuffer(emitKernel, propPoolBuffer, poolBuffer);
         particleCompute.Dispatch(emitKernel, numEmit / (int)x, 1, 1);
     }
 
@@ -107,7 +115,7 @@ public class ParticleBase : MonoBehaviour
         if (Input.GetMouseButton(0))
         {
             var pos = Input.mousePosition;
-            pos.z = 10f;
+            pos.z = 30f;
             pos = Camera.main.ScreenToWorldPoint(pos);
             EmitParticle(pos, Mathf.CeilToInt(emission * Time.deltaTime));
         }
@@ -117,17 +125,22 @@ public class ParticleBase : MonoBehaviour
 
     private void OnRenderObject()
     {
+        activeCountBuffer.SetData(particleCounts);
+        ComputeBuffer.CopyCount(activeBuffer, activeCountBuffer, 0);
+
         visualizer.SetBuffer(propParticleBuffer, particleBuffer);
+        visualizer.SetBuffer(propActiveBuffer, activeBuffer);
         visualizer.SetPass(0);
-        Graphics.DrawProcedural(MeshTopology.Points, numParticles);
+        Graphics.DrawProceduralIndirect(MeshTopology.Points, activeCountBuffer);
     }
 
     private void OnDestroy()
     {
-        new[] { particleBuffer, PoolBuffer, countBuffer }.ToList()
-            .ForEach(buffer => {
-            if (buffer != null)
-                buffer.Release();
-        });
+        new[] { particleBuffer, poolBuffer, activeBuffer, poolCountBuffer, activeCountBuffer }.ToList()
+            .ForEach(buffer =>
+            {
+                if (buffer != null)
+                    buffer.Release();
+            });
     }
 }

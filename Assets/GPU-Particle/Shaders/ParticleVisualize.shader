@@ -38,16 +38,19 @@
 			};
 			
 			StructuredBuffer<ParticleData> _Particles;
+			StructuredBuffer<uint> _Active;
+
 			sampler2D _MainTex;
 			float4 _MainTex_ST;
 			
 			v2f vert (uint id : SV_VertexID)
-{
+			{
+				uint idx = _Active[id];
 				v2f o;
-				o.pos = float4(_Particles[id].position, 1);
+				o.pos = float4(_Particles[idx].position, 1);
 				o.uv = float2(0,0);
-				o.col = _Particles[id].color;
-				o.size = _Particles[id].isActive ? _Particles[id].size : 0; // 有効出ないときはサイズを0にする
+				o.col = _Particles[idx].color;
+				o.size = _Particles[idx].isActive ? _Particles[idx].size : 0; // 有効出ないときはサイズを0にする
 
 				return o;
 			}
@@ -62,7 +65,6 @@
 				float4 col = input[0].col;
 				o.size = input[0].size;
 
-				if(0 < o.size)
 				for (int x = 0; x < 2; x++)
 				{
 					for (int y = 0; y < 2; y++)

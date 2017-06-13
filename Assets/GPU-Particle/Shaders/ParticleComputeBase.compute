@@ -9,8 +9,10 @@
 // with cs.SetTexture
 RWTexture2D<float4> Result;
 RWStructuredBuffer<ParticleData> _Particles;
+
 AppendStructuredBuffer<uint> _Dead;
 ConsumeStructuredBuffer<uint> _Pool;
+AppendStructuredBuffer<uint> _Active;
 
 // Prop for emit
 float3 _PosEmit;
@@ -43,7 +45,7 @@ void emit (uint3 id : SV_DispatchThreadID)
 		p.velocity = normalize(p.velocity) * 10.0 * frac(idx*0.01);
 		p.color = float4(1,1,1,1);
 		p.duration = _LifeTime;
-		p.size = 0.1;
+		p.size = .1;
 
 		_Particles[idx] = p;
 	}
@@ -62,6 +64,8 @@ void update (uint3 id : SV_DispatchThreadID)
 			p.isActive = false;
 			_Dead.Append(idx);
 		}
+		else
+			_Active.Append(idx);
 		_Particles[idx] = p;
 	}
 }
