@@ -19,7 +19,6 @@ public class ParticleBase : MonoBehaviour
     public float emission = 10000f;
     public float lifeTime = 10f;
     public float gravity = 1f;
-    public Material visualizer;
 
     [Header("Compute Shader")]
     public ComputeShader particleCompute;
@@ -36,7 +35,6 @@ public class ParticleBase : MonoBehaviour
     ComputeBuffer particleBuffer;
     ComputeBuffer activeBuffer;
     ComputeBuffer poolBuffer;
-    ComputeBuffer activeCountBuffer;
     ComputeBuffer poolCountBuffer;
     int[] particleCounts;
 
@@ -45,6 +43,9 @@ public class ParticleBase : MonoBehaviour
     int updateKernel;
 
     uint x;
+
+    public ComputeBuffer ParticleBuffer { get { return particleBuffer; } }
+    public ComputeBuffer ActiveBuffer { get { return activeBuffer; } }
 
     protected virtual void Init()
     {
@@ -64,8 +65,6 @@ public class ParticleBase : MonoBehaviour
         poolBuffer.SetCounterValue(0);
 
         particleCounts = new[] { 0, 1, 0, 0 };
-        activeCountBuffer = new ComputeBuffer(4, Marshal.SizeOf(typeof(int)), ComputeBufferType.IndirectArguments);
-        activeCountBuffer.SetData(particleCounts);
         poolCountBuffer = new ComputeBuffer(4, Marshal.SizeOf(typeof(int)), ComputeBufferType.IndirectArguments);
         poolCountBuffer.SetData(particleCounts);
 
@@ -123,20 +122,9 @@ public class ParticleBase : MonoBehaviour
         UpdateParticle();
     }
 
-    private void OnRenderObject()
-    {
-        activeCountBuffer.SetData(particleCounts);
-        ComputeBuffer.CopyCount(activeBuffer, activeCountBuffer, 0);
-
-        visualizer.SetBuffer(propParticleBuffer, particleBuffer);
-        visualizer.SetBuffer(propActiveBuffer, activeBuffer);
-        visualizer.SetPass(0);
-        Graphics.DrawProceduralIndirect(MeshTopology.Points, activeCountBuffer);
-    }
-
     private void OnDestroy()
     {
-        new[] { particleBuffer, poolBuffer, activeBuffer, poolCountBuffer, activeCountBuffer }.ToList()
+        new[] { particleBuffer, poolBuffer, activeBuffer, poolCountBuffer }.ToList()
             .ForEach(buffer =>
             {
                 if (buffer != null)
