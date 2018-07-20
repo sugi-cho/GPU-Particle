@@ -8,5 +8,4 @@ using ComputeShader
 
 ## Youtube
 
-![](http://i.ytimg.com/vi/Y-dSDO_rCFE/maxresdefault.jpg)
-[https://youtu.be/Y-dSDO_rCFE](https://youtu.be/Y-dSDO_rCFE)
+[![](http://i.ytimg.com/vi/Y-dSDO_rCFE/maxresdefault.jpg)https://youtu.be/Y-dSDO_rCFE](https://youtu.be/Y-dSDO_rCFE)
